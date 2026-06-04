@@ -1,0 +1,49 @@
+{
+  "name": "pi-web-tools",
+  "version": "0.1.0",
+  "description": "Synchronous web search, fetch, and crawl tools for pi coding agent",
+  "type": "module",
+  "private": true,
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-coding-agent",
+    "extension",
+    "web-search",
+    "web-fetch",
+    "crawler"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shooln/pi-web-tools.git"
+  },
+  "scripts": {
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "check": "node --experimental-strip-types --check extensions/index.ts"
+  },
+  "dependencies": {
+    "@mozilla/readability": "^0.5.0",
+    "linkedom": "^0.16.11",
+    "turndown": "^7.2.4"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    },
+    "typebox": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "typebox": "*"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/index.ts"
+    ]
+  }
+}
