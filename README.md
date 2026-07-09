@@ -125,6 +125,10 @@ npm test
 - Crawling is intentionally bounded; defaults are conservative.
 - All operations are synchronous: each tool completes within its own call, avoiding background `sendMessage` patterns that can corrupt provider tool-use/tool-result pairing.
 
+## Disclaimer
+
+This project is 100% vibe coded. It is provided as-is, with **no maintenance, support, or guarantees** of any kind. Use at your own risk.
+
 ## License
 
 MIT
