@@ -6,7 +6,7 @@ This package avoids background `pi.sendMessage(..., triggerTurn: true)` patterns
 
 ## Tools
 
-- `web_search` — online search. Uses Brave Search if `BRAVE_SEARCH_API_KEY` is set; otherwise falls back to DuckDuckGo HTML search.
+- `internet_search` — online search. Uses Brave Search if `BRAVE_SEARCH_API_KEY` is set; otherwise falls back to DuckDuckGo HTML search. The name avoids collisions with provider-native `web_search` tools on Bifrost/Claude routes.
 - `fetch_content` — fetch one or more URLs and extract readable Markdown/text.
 - `web_crawl` — bounded crawl from a start URL with `maxPages`, `maxDepth`, and same-origin defaults.
 - `get_search_content` — retrieve content from a previous result ID stored in the current pi session.
@@ -15,7 +15,7 @@ This package avoids background `pi.sendMessage(..., triggerTurn: true)` patterns
 
 Once installed and reloaded, the tools are available to the agent automatically. Below are the parameters for each tool.
 
-### `web_search`
+### `internet_search`
 
 | Param | Type | Description |
 |-------|------|-------------|
@@ -64,7 +64,7 @@ Provide either `url` or `urls`.
 
 ### `get_search_content`
 
-Retrieve content stored from a previous `web_search` / `fetch_content` / `web_crawl` call (results are cached per pi session and referenced by `responseId`).
+Retrieve content stored from a previous `internet_search` / `fetch_content` / `web_crawl` call (results are cached in the current pi process and referenced by `responseId`).
 
 | Param | Type | Description |
 |-------|------|-------------|
@@ -116,7 +116,7 @@ npm test
 
 | Variable | Purpose |
 |----------|---------|
-| `BRAVE_SEARCH_API_KEY` | Enables Brave Search for `web_search`. Without it, search falls back to DuckDuckGo HTML. |
+| `BRAVE_SEARCH_API_KEY` | Enables Brave Search for `internet_search`. Without it, search falls back to DuckDuckGo HTML. |
 
 ## Notes
 

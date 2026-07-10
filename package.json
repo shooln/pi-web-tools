@@ -1,6 +1,6 @@
 {
   "name": "pi-web-tools",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Synchronous web search, fetch, and crawl tools for pi coding agent",
   "type": "module",
   "private": true,

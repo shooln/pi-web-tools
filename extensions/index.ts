@@ -12,6 +12,18 @@ const DEFAULT_MAX_RESULTS = 5;
 const MAX_FETCH_URLS = 10;
 const MAX_CRAWL_PAGES = 50;
 const MAX_CRAWL_DEPTH = 3;
+// Hard ceiling on model-facing output per tool turn. Full data stays
+// retrievable via get_search_content using the Response ID.
+const MAX_TOTAL_OUTPUT_CHARS = 24_000;
+
+function clampOutput(text: string, id: string): string {
+  if (text.length <= MAX_TOTAL_OUTPUT_CHARS) return text;
+  return (
+    `${text.slice(0, MAX_TOTAL_OUTPUT_CHARS)}\n\n` +
+    `[output truncated at ${MAX_TOTAL_OUTPUT_CHARS} chars to protect context window; ` +
+    `use get_search_content with responseId "${id}" to retrieve the full result]`
+  );
+}
 
 const turndown = new TurndownService({
   headingStyle: "atx",
@@ -325,7 +337,7 @@ function formatSearchResults(query: string, provider: string, id: string, result
     lines.push("");
   }
   if (results.length === 0) lines.push("No results found.");
-  return lines.join("\n");
+  return clampOutput(lines.join("\n"), id);
 }
 
 function formatPages(title: string, id: string, pages: ExtractedContent[]): string {
@@ -343,12 +355,15 @@ function formatPages(title: string, id: string, pages: ExtractedContent[]): stri
     }
     lines.push("");
   }
-  return lines.join("\n");
+  return clampOutput(lines.join("\n"), id);
 }
 
-function remember(pi: ExtensionAPI, result: StoredResult): void {
+function remember(_pi: ExtensionAPI, result: StoredResult): void {
   store.set(result.id, result);
-  pi.appendEntry("pi-web-tools-result", result);
+  // Session persistence is intentionally disabled for now so web-tool turns
+  // only add the normal toolResult message to conversation history. This keeps
+  // the Bifrost replay path as simple as possible; get_search_content still
+  // works within the current pi process.
 }
 
 function restoreFromSession(pi: ExtensionAPI): void {
@@ -440,12 +455,12 @@ export default function webToolsExtension(pi: ExtensionAPI) {
   restoreFromSession(pi);
 
   pi.registerTool({
-    name: "web_search",
-    label: "Web Search",
+    name: "internet_search",
+    label: "Internet Search",
     description: "Search the web synchronously. Uses Brave Search when BRAVE_SEARCH_API_KEY is set, otherwise DuckDuckGo HTML search.",
     promptSnippet: "Search the web and optionally fetch top-result page content synchronously.",
     promptGuidelines: [
-      "Use web_search for online information lookup; pass fetchResults=true only when page content is needed because it makes additional network requests.",
+      "Use internet_search for online information lookup; pass fetchResults=true only when page content is needed because it makes additional network requests.",
     ],
     parameters: Type.Object({
       query: Type.String({ description: "Search query" }),
@@ -454,7 +469,7 @@ export default function webToolsExtension(pi: ExtensionAPI) {
       fetchResults: Type.Optional(Type.Boolean({ description: "Fetch and extract each result page before returning" })),
       maxCharsPerResult: Type.Optional(Type.Number({ description: "Maximum extracted characters per fetched result" })),
     }),
-    async execute(_toolCallId, params, signal, onUpdate) {
+    async execute(_toolCallId, params, signal, _onUpdate) {
       const query = asString(params.query);
       if (!query) throw new Error("query is required");
       const provider = (asString(params.provider) || "auto") as SearchProvider;
@@ -462,12 +477,10 @@ export default function webToolsExtension(pi: ExtensionAPI) {
       const fetchResults = asBoolean(params.fetchResults, false);
       const maxCharsPerResult = asNumber(params.maxCharsPerResult, 4_000, 500, 30_000);
 
-      onUpdate?.({ content: [{ type: "text", text: `Searching ${provider} for: ${query}` }] });
       const searched = await runSearch(query, provider, maxResults, signal);
       let results = searched.results;
 
       if (fetchResults && results.length > 0) {
-        onUpdate?.({ content: [{ type: "text", text: `Fetching ${results.length} result pages...` }] });
         const fetched = await mapWithLimit(results, 3, async (result) => ({
           ...result,
           content: await fetchExtractedContent(result.url, {
@@ -502,14 +515,13 @@ export default function webToolsExtension(pi: ExtensionAPI) {
       timeoutMs: Type.Optional(Type.Number({ description: "Timeout per URL in milliseconds" })),
       includeLinks: Type.Optional(Type.Boolean({ description: "Include extracted links in details" })),
     }),
-    async execute(_toolCallId, params, signal, onUpdate) {
+    async execute(_toolCallId, params, signal, _onUpdate) {
       const urls = normalizeUrlList(params as Record<string, unknown>);
       if (urls.length === 0) throw new Error("Provide url or urls");
       const maxChars = asNumber(params.maxChars, DEFAULT_MAX_CHARS, 500, 100_000);
       const timeoutMs = asNumber(params.timeoutMs, DEFAULT_TIMEOUT_MS, 1_000, 60_000);
       const includeLinks = asBoolean(params.includeLinks, false);
 
-      onUpdate?.({ content: [{ type: "text", text: `Fetching ${urls.length} URL(s)...` }] });
       const pages = await mapWithLimit(urls, 3, (url) =>
         fetchExtractedContent(url, { signal, timeoutMs, maxChars, includeLinks }),
       );
@@ -541,7 +553,7 @@ export default function webToolsExtension(pi: ExtensionAPI) {
       maxCharsPerPage: Type.Optional(Type.Number({ description: "Maximum extracted characters per page" })),
       timeoutMs: Type.Optional(Type.Number({ description: "Timeout per page in milliseconds" })),
     }),
-    async execute(_toolCallId, params, signal, onUpdate) {
+    async execute(_toolCallId, params, signal, _onUpdate) {
       const url = asString(params.url);
       if (!url) throw new Error("url is required");
       const maxPages = asNumber(params.maxPages, 10, 1, MAX_CRAWL_PAGES);
@@ -552,7 +564,6 @@ export default function webToolsExtension(pi: ExtensionAPI) {
       const includePatterns = Array.isArray(params.includePatterns) ? params.includePatterns.filter((item): item is string => typeof item === "string") : [];
       const excludePatterns = Array.isArray(params.excludePatterns) ? params.excludePatterns.filter((item): item is string => typeof item === "string") : [];
 
-      onUpdate?.({ content: [{ type: "text", text: `Crawling ${url} (maxPages=${maxPages}, maxDepth=${maxDepth})...` }] });
       const { pages, errors } = await crawl(url, {
         signal,
         timeoutMs,
@@ -576,11 +587,11 @@ export default function webToolsExtension(pi: ExtensionAPI) {
   pi.registerTool({
     name: "get_search_content",
     label: "Get Stored Web Content",
-    description: "Retrieve a previous web_search/fetch_content/web_crawl response by responseId.",
+    description: "Retrieve a previous internet_search/fetch_content/web_crawl response by responseId.",
     promptSnippet: "Retrieve stored web tool results by responseId.",
     promptGuidelines: ["Use get_search_content when a prior web tool response ID needs to be expanded or revisited."],
     parameters: Type.Object({
-      responseId: Type.String({ description: "Response ID returned by web_search, fetch_content, or web_crawl" }),
+      responseId: Type.String({ description: "Response ID returned by internet_search, fetch_content, or web_crawl" }),
       url: Type.Optional(Type.String({ description: "Specific URL to retrieve from the stored response" })),
       urlIndex: Type.Optional(Type.Number({ description: "Zero-based URL/result index to retrieve" })),
     }),

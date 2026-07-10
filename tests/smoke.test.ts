@@ -14,7 +14,7 @@ test("registers web tools and fetches example.com", async () => {
 
   webToolsExtension(pi as any);
 
-  for (const name of ["web_search", "fetch_content", "web_crawl", "get_search_content"]) {
+  for (const name of ["internet_search", "fetch_content", "web_crawl", "get_search_content"]) {
     assert.ok(tools.has(name), `${name} should be registered`);
   }
 
